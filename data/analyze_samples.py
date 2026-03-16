@@ -3,14 +3,13 @@ import cv2
 import random
 import matplotlib.pyplot as plt
 
-# --- 1. FINAL CORRECTED PATHS ---
 base_path = "/datasets/tdt4265/ad/open/Poles"
 lidar_img_dir = f"{base_path}/lidar/combined_color/train"
 rgb_img_dir   = f"{base_path}/rgb/images/train"
 lidar_lbl_dir = f"{base_path}/lidar/labels/train"
 rgb_lbl_dir   = f"{base_path}/rgb/labels/train"
 
-def draw_boxes(img, label_path, color=(0, 0, 0)): # Default to Black as you requested
+def draw_boxes(img, label_path, color=(0, 0, 0)): 
     if img is None: return None
     h, w, _ = img.shape
     if not os.path.exists(label_path):
@@ -30,17 +29,15 @@ def draw_boxes(img, label_path, color=(0, 0, 0)): # Default to Black as you requ
 
 # Get list from LiDAR folder
 all_lidar_files = [f for f in os.listdir(lidar_img_dir) if f.endswith('.png')]
-samples = random.sample(all_lidar_files, 3)
 
 fig, axes = plt.subplots(3, 2, figsize=(15, 10))
 
-for i, img_name in enumerate(samples):
-    # --- LIDAR LOADING ---
+for i, img_name in enumerate(all_lidar_files):
     path_l = os.path.join(lidar_img_dir, img_name)
     img_l = cv2.imread(path_l)
     lbl_l = os.path.join(lidar_lbl_dir, img_name.replace('.png', '.txt'))
 
-    # --- RGB MAPPING (image_822.png -> frame_000822.PNG) ---
+    
     img_num = img_name.split('_')[1].split('.')[0]
     rgb_name = f"frame_{int(img_num):06d}.PNG" # Formats to 6 digits
     path_r = os.path.join(rgb_img_dir, rgb_name)
@@ -48,11 +45,9 @@ for i, img_name in enumerate(samples):
     
     img_r = cv2.imread(path_r)
 
-    # --- DRAWING ---
     res_l = draw_boxes(img_l, lbl_l, color=(0, 0, 0)) # Black boxes
     res_r = draw_boxes(img_r, lbl_r, color=(0, 255, 0)) # Green for RGB contrast
 
-    # --- DISPLAY ---
     if res_r is not None:
         axes[i, 0].imshow(cv2.cvtColor(res_r, cv2.COLOR_BGR2RGB))
         axes[i, 0].set_title(f"RGB: {rgb_name}")
