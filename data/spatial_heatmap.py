@@ -2,12 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import os
-import seaborn as sns
 
-base_path = "/datasets/tdt4265/ad/open/Poles"
+base_path = "/datasets/tdt4265/Poles2025"
 
-lidar_lbl_dir = f"{base_path}/lidar/labels/train"
-rgb_lbl_dir   = f"{base_path}/rgb/labels/train"
+v1_lbl_dir = f"{base_path}/roadpoles_v1/train/labels"
+iphone_lbl_dir = f"{base_path}/Road_poles_iPhone/labels/Train/train"
 
 def spatial_heatmap(label, title):
     x = []
@@ -39,7 +38,10 @@ def spatial_heatmap(label, title):
     plt.xlabel('Normalized X (Width)')
     plt.ylabel('Normalized Y (Height)')
     
-    plt.show()
+    filename = f'spatial_heatmap_{title.replace(" ", "_").lower()}.png'
+    plt.savefig(filename, dpi=150, bbox_inches='tight')
+    plt.close()
 
-spatial_heatmap(lidar_lbl_dir, 'LiDAR Poles')
-spatial_heatmap(rgb_lbl_dir, 'RGB Poles')
+spatial_heatmap(v1_lbl_dir, 'Dashcam Poles')
+spatial_heatmap(iphone_lbl_dir, 'iPhone Poles')
+

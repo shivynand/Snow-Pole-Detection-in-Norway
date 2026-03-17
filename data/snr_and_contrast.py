@@ -3,135 +3,105 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2  
 
-base_path = "/datasets/tdt4265/ad/open/Poles"
-lidar_img_dir = f"{base_path}/lidar/combined_color/train"
-rgb_img_dir   = f"{base_path}/rgb/images/train"
-lidar_lbl_dir = f"{base_path}/lidar/labels/train"
-rgb_lbl_dir   = f"{base_path}/rgb/labels/train"
+# Use the paths you established in aspect_ratio.py
 
-# Step 1 - Get LiDAR image ids that exist in RGB for complete analysis
-lidar_files = set(f for f in os.listdir(lidar_img_dir) if f.endswith('.png'))
-lidar_nums  = set(int(f.split('_')[1].split('.')[0]) for f in lidar_files)
+base_path = "/datasets/tdt4265/Poles2025"
 
-rgb_files = set(f for f in os.listdir(rgb_img_dir) if f.endswith('.PNG'))
-rgb_nums = set(int(f.split('_')[1].split('.')[0]) for f in rgb_files)
+V1_IMG_DIR = f"{base_path}/roadpoles_v1/train/images"
+V1_LBL_DIR = f"{base_path}/roadpoles_v1/train/labels"
 
-common_nums = sorted(list(lidar_nums.intersection(rgb_nums)))
+IPHONE_IMG_DIR = f"{base_path}/Road_poles_iPhone/images/Train/train"
+IPHONE_LBL_DIR = f"{base_path}/Road_poles_iPhone/labels/Train/train"
 
-
-# Step 2 - Isolate signal and noise
-lidar_signals_mean = []
-rgb_signals_mean = []
-
-lidar_noise_mean = []
-rgb_noise_mean = []
-
-lidar_noise_std = []
-rgb_noise_std = []
-
-
-for num in common_nums:
-    lidar_path = os.path.join(lidar_img_dir, f"image_{num}.png")
-    rgb_path = os.path.join(rgb_img_dir, f"frame_{num:06d}.PNG")
-
-    lidar_imgs = cv2.imread(lidar_path)
-    rgb_imgs = cv2.imread(rgb_path)
-
-    if lidar_imgs is not None:
-        lidar_gray = cv2.cvtColor(lidar_imgs, cv2.COLOR_BGR2GRAY)
-        hl,wl= lidar_gray.shape
-        with open(os.path.join(lidar_lbl_dir, f"image_{num}.txt"), 'r') as f:
+def calculate_metrics_for_dataset(img_dir, lbl_dir, max_samples=500):
+    signals_mean = []
+    noise_mean = []
+    noise_std = []
+    
+    
+    label_files = [f for f in os.listdir(lbl_dir) if f.endswith('.txt')][:max_samples]
+    
+    for lbl_file in label_files:
+        img_name = lbl_file.replace('.txt', '.jpg') 
+        img_path = os.path.join(img_dir, img_name)
+        
+       
+        if not os.path.exists(img_path):
+            img_path = img_path.replace('.jpg', '.PNG')
+            
+        img = cv2.imread(img_path)
+        if img is None: continue
+            
+        # Extract the RED channel instead of Grayscale (Red is index 2 in OpenCV's BGR)
+        # Snow poles are red, snow is white. This gives much better contrast data
+        channel = img[:, :, 2] 
+        h, w = channel.shape
+        
+        with open(os.path.join(lbl_dir, lbl_file), 'r') as f:
             for line in f:
                 parts = line.split()
                 if len(parts) < 5: continue
                 _, x, y, nw, nh = map(float, parts)
-                x1, y1 = int((x - nw/2) * wl), int((y - nh/2) * hl)
-                x2, y2 = int((x + nw/2) * wl), int((y + nh/2) * hl)
-                pole_region = lidar_gray[y1:y2, x1:x2]
+                
+                # Bounding box coordinates
+                x1, y1 = int((x - nw/2) * w), int((y - nh/2) * h)
+                x2, y2 = int((x + nw/2) * w), int((y + nh/2) * h)
+                
+                # Ensure coordinates are within image bounds
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(w, x2), min(h, y2)
+                
+                pole_region = channel[y1:y2, x1:x2]
+                if pole_region.size == 0: continue
+                    
+                signals_mean.append(np.mean(pole_region))
 
-                signal_strength = np.mean(pole_region)
-                lidar_signals_mean.append(signal_strength)
-
-                # Noise for LiDAR from background (with padding)
+                # Noise from background (padding left and right of the pole)
                 nx1, ny1 = max(0, x1-15), y1
-                nx2, ny2 = min(wl, x1 - 5), min(hl, y1 + 10)
+                nx2, ny2 = min(w, x1-5), min(h, y1+10)
+                bg_region = channel[ny1:ny2, nx1:nx2]
+                
+                if bg_region.size > 0:
+                    noise_mean.append(np.mean(bg_region))
+                    noise_std.append(np.std(bg_region))
 
-                bg_lidar = lidar_gray[ny1:ny2, nx1:nx2]
+    return signals_mean, noise_mean, noise_std
 
-                lidar_noise_mean.append(np.mean(bg_lidar))
-                lidar_noise_std.append(np.std(bg_lidar))
+print("Processing roadpoles_v1...")
+v1_sig, v1_noise, v1_std = calculate_metrics_for_dataset(V1_IMG_DIR, V1_LBL_DIR)
 
-                if num < common_nums[5]: # Only save for the first 5 images
-                    cv2.imwrite(f"debug_lidar_{num}.png", pole_region)
-                    cv2.imwrite(f"debug_lidar_bg_{num}.png", bg_lidar)
+print("Processing iPhone...")
+ip_sig, ip_noise, ip_std = calculate_metrics_for_dataset(IPHONE_IMG_DIR, IPHONE_LBL_DIR)
 
-    if rgb_imgs is not None:
-        rgb_gray = cv2.cvtColor(rgb_imgs, cv2.COLOR_BGR2GRAY)
-        hr, wr = rgb_gray.shape
-        with open(os.path.join(rgb_lbl_dir, f"frame_{num:06d}.txt"), 'r') as f:
-            for line in f:
-                parts = line.split()
-                if len(parts) < 5: continue
-                _, x, y, nw, nh = map(float, parts)
-                x1, y1 = int((x - nw/2) * wr), int((y - nh/2) * hr)
-                x2, y2 = int((x + nw/2) * wr), int((y + nh/2) * hr)
-                pole_region = rgb_gray[y1:y2, x1:x2]
-                signal_strength = np.mean(pole_region)
-                rgb_signals_mean.append(signal_strength)
+# Calculations
+v1_snr = np.nanmean(v1_sig) / np.nanmean(v1_std)
+ip_snr = np.nanmean(ip_sig) / np.nanmean(ip_std)
 
-                # Noise for RGB from background (with padding)
-                nx1, ny1 = max(0, x1-15), y1
-                nx2, ny2 = min(wr, x1 - 5), min(hr, y1 + 10)
+v1_contrast = np.nanmean(v1_sig) / np.nanmean(v1_noise)
+ip_contrast = np.nanmean(ip_sig) / np.nanmean(ip_noise)
 
-                bg_rgb = rgb_gray[ny1:ny2, nx1:nx2]
-                rgb_noise_mean.append(np.mean(bg_rgb))
-                rgb_noise_std.append(np.std(bg_rgb))
+print(f"roadpoles_v1 - SNR: {v1_snr:.2f} | Contrast: {v1_contrast:.2f}")
+print(f"iPhone       - SNR: {ip_snr:.2f} | Contrast: {ip_contrast:.2f}")
 
-                if num < common_nums[5]: # Only save for the first 5 images
-                    cv2.imwrite(f"debug_rgb_{num}.png", pole_region)
-                    cv2.imwrite(f"debug_rgb_bg_{num}.png", bg_rgb)
-
-# Step 3 - Calculate SNR and Contrast and Contrast to Noise Ratio (CNR)
-
-# SNR = Mean Signal / Std Dev Noise
-lidar_snr = np.nanmean(lidar_signals_mean) / np.nanmean(lidar_noise_std)
-rgb_snr = np.nanmean(rgb_signals_mean) / np.nanmean(rgb_noise_std)
-
-# Contrast = Mean Signal / Mean Noise
-lidar_contrast = np.nanmean(lidar_signals_mean) / np.nanmean(lidar_noise_mean)
-rgb_contrast = np.nanmean(rgb_signals_mean) / np.nanmean(rgb_noise_mean)
-
-# Contrast to Noise Ratio (CNR) = (Mean Signal - Mean Noise) / Std Dev Noise
-lidar_cnr = (np.nanmean(lidar_signals_mean) - np.nanmean(lidar_noise_mean)) / np.nanmean(lidar_noise_std)
-rgb_cnr = (np.nanmean(rgb_signals_mean) - np.nanmean(rgb_noise_mean)) / np.nanmean(rgb_noise_std)   
-
-# Print all metrics
-print(f"LiDAR SNR: {lidar_snr:.2f}")
-print(f"RGB SNR: {rgb_snr:.2f}")
-
-print(f"LiDAR Contrast: {lidar_contrast:.2f}")
-print(f"RGB Contrast: {rgb_contrast:.2f}")
-
-print(f"LiDAR CNR: {lidar_cnr:.2f}")
-print(f"RGB CNR: {rgb_cnr:.2f}")
-
-#Plotting signal and noise distributions
+# Plotting
 plt.figure(figsize=(12, 5))
+
 plt.subplot(1, 2, 1)
-plt.hist(lidar_signals_mean, bins=20, alpha=0.7, label='LiDAR Signal', color='blue')
-plt.hist(lidar_noise_mean, bins=20, alpha=0.7, label='LiDAR Noise', color='cyan')
-plt.title('LiDAR Signal vs Noise Distribution')
+plt.hist(v1_sig, bins=20, alpha=0.7, label='v1 Signal (Pole)', color='red')
+plt.hist(v1_noise, bins=20, alpha=0.7, label='v1 Noise (Bg)', color='gray')
+plt.title('roadpoles_v1: Signal vs Noise (Red Channel)')
 plt.xlabel('Pixel Intensity')  
 plt.ylabel('Frequency')
 plt.legend()    
 
 plt.subplot(1, 2, 2)
-plt.hist(rgb_signals_mean, bins=20, alpha=0.7, label='RGB Signal', color='green')
-plt.hist(rgb_noise_mean, bins=20, alpha=0.7, label='RGB Noise', color='lightgreen')
-plt.title('RGB Signal vs Noise Distribution')
+plt.hist(ip_sig, bins=20, alpha=0.7, label='iPhone Signal (Pole)', color='blue')
+plt.hist(ip_noise, bins=20, alpha=0.7, label='iPhone Noise (Bg)', color='lightblue')
+plt.title('iPhone: Signal vs Noise (Red Channel)')
 plt.xlabel('Pixel Intensity')
 plt.ylabel('Frequency')
 plt.legend()
-plt.tight_layout()
-plt.savefig("snr_contrast_distribution.png")
 
+plt.tight_layout()
+plt.savefig("rgb_datasets_snr_comparison.png")
+print("Saved plot to rgb_datasets_snr_comparison.png")

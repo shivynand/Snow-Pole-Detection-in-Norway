@@ -9,3 +9,5 @@ poles_env/
 *.pt
 *.onnx
 runs/
+
+snowpoles_env/
