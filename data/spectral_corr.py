@@ -97,7 +97,6 @@ if img is not None:
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     
     # Split the channels
-    # Note: Depending on the dataset, these often map to Height, Intensity, and Density
     c1, c2, c3 = cv2.split(img_rgb)
 
     fig, axes = plt.subplots(1, 4, figsize=(20, 5))
