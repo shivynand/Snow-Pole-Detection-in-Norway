@@ -36,19 +36,20 @@ avg_hi = np.mean(heights_iphone)
 aspect_ratio_rp = avg_hr / avg_wr
 aspect_ratio_ip = avg_hi / avg_wi
 
-print(f"Total Poles Analyzed: {len(widths_roadpoles)}")
-print(f"Average Normalized Width: {avg_wr:.4f}")
-print(f"Average Aspect Ratio (H/W): {aspect_ratio_rp:.2f}")
+print(f"Total Dashcam Poles Analyzed: {len(widths_roadpoles)}")
+print(f"Average Dashcam Normalized Width: {avg_wr:.4f}")
+print(f"Average Dashcam Aspect Ratio (H/W): {aspect_ratio_rp:.2f}\n")
 
-print(f"Average Normalized Width iPhone: {avg_wi:.4f}")
-print(f"Average Aspect Ratio iPhone (H/W): {aspect_ratio_ip:.2f}")
+print(f"Total iPhone Poles Analyzed: {len(widths_iphone)}")
+print(f"Average iPhone Normalized Width: {avg_wi:.4f}")
+print(f"Average iPhone Aspect Ratio (H/W): {aspect_ratio_ip:.2f}")
 
 # Seeing average trend for how wide poles are
 if avg_wr < 0.01:
-    print("WARNING: RoadPoles_v1 poles are extremely thin (<1% of image width). Consider high-res training!")
+    print("RoadPoles_v1 poles are less than 1% of image width.")
 
 if avg_wi < 0.01:
-    print("WARNING: iPhone poles are extremely thin (<1% of image width). Consider high-res training!")
+    print("iPhone poles are less than 1% of image width.")
 
 # Visualing resolution against pole width trade off
 resolutions = [320, 416, 640, 1024, 1280]
